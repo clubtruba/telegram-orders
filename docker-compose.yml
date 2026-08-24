@@ -1,0 +1,65 @@
+name: telegram-orders
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-telegram_orders}
+      POSTGRES_USER: ${POSTGRES_USER:-telegram_orders}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-development-only}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [orders-internal]
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://telegram_orders:development-only@db:5432/telegram_orders}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-local-development-bot-token}
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      db: {condition: service_healthy}
+    networks: [orders-internal]
+    restart: unless-stopped
+
+  bot:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://telegram_orders:development-only@db:5432/telegram_orders}
+    depends_on:
+      db: {condition: service_healthy}
+      api: {condition: service_started}
+    networks: [orders-internal]
+    restart: unless-stopped
+    profiles: [bot]
+
+  mini-app:
+    build: ./mini-app
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+    ports: ["127.0.0.1:5173:5173"]
+    networks: [orders-internal]
+    profiles: [frontend]
+
+volumes:
+  postgres-data:
+
+networks:
+  orders-internal:
+    name: telegram-orders-internal
+    driver: bridge
