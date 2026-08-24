@@ -1,0 +1,8 @@
+[Unit]
+Description=Back up Telegram Orders PostgreSQL
+RequiresMountsFor=/mnt/ai /mnt/archive_hdd_serv
+After=telegram-orders.service
+
+[Service]
+Type=oneshot
+ExecStart=/mnt/ai/repos/telegram-orders/infrastructure/production/backup-postgres.sh

@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Telegram Orders PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 02:15:00
+Persistent=true
+RandomizedDelaySec=300
+Unit=telegram-orders-backup.service
+
+[Install]
+WantedBy=timers.target

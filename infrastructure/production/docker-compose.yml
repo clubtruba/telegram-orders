@@ -1,0 +1,47 @@
+name: telegram-orders
+
+services:
+  db:
+    image: postgres:16-alpine
+    env_file: ${TELEGRAM_ORDERS_ENV_FILE:-/mnt/ai/compose/telegram-orders/.env}
+    volumes:
+      - /mnt/ai/data/telegram-orders/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [orders-internal]
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    env_file: ${TELEGRAM_ORDERS_ENV_FILE:-/mnt/ai/compose/telegram-orders/.env}
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [orders-internal]
+    restart: unless-stopped
+
+  bot:
+    build:
+      context: ../..
+      dockerfile: bot/Dockerfile
+    env_file: ${TELEGRAM_ORDERS_ENV_FILE:-/mnt/ai/compose/telegram-orders/.env}
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    networks: [orders-internal]
+    restart: unless-stopped
+
+networks:
+  orders-internal:
+    name: telegram-orders-internal
+    driver: bridge

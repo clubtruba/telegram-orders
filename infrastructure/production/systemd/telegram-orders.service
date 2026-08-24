@@ -1,0 +1,19 @@
+[Unit]
+Description=Telegram Orders Docker Compose stack
+RequiresMountsFor=/mnt/ai
+After=docker.service network-online.target mnt-ai.mount
+Requires=docker.service mnt-ai.mount
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/mnt/ai/repos/telegram-orders
+ExecStartPre=/usr/bin/mountpoint -q /mnt/ai
+ExecStart=/usr/bin/docker compose --env-file /mnt/ai/compose/telegram-orders/.env -f infrastructure/production/docker-compose.yml up -d --build
+ExecStop=/usr/bin/docker compose --env-file /mnt/ai/compose/telegram-orders/.env -f infrastructure/production/docker-compose.yml down
+TimeoutStartSec=600
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

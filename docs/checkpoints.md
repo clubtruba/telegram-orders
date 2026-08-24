@@ -26,6 +26,16 @@
 - Confirm independent backup target and tested restore.
 - Explicit user approval is required before production changes.
 
+Prepared production assets live in `infrastructure/production`. The API is
+bound only to `127.0.0.1:8000`; its public HTTPS endpoint will be provided by
+Tailscale Funnel at `https://alex-server.tail684c35.ts.net`.
+
+The project-specific backup timer creates a PostgreSQL custom-format dump under
+`/mnt/ai/backups/telegram-orders/postgres` and copies it to the physically
+separate `/mnt/archive_hdd_serv/telegram-orders/postgres` mount. It keeps 7 days
+locally and 30 days on the backup disk. Installation and a restore drill remain
+mandatory deployment checkpoints.
+
 ## Confirmed production facts
 
 - Ubuntu 24.04.4 LTS; Docker 29.7.2; Compose 5.4.0.
