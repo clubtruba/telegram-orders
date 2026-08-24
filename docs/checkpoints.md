@@ -33,8 +33,9 @@ Tailscale Funnel at `https://alex-server.tail684c35.ts.net`.
 The project-specific backup timer creates a PostgreSQL custom-format dump under
 `/mnt/ai/backups/telegram-orders/postgres` and copies it to the physically
 separate `/mnt/archive_hdd_serv/telegram-orders/postgres` mount. It keeps 7 days
-locally and 30 days on the backup disk. Installation and a restore drill remain
-mandatory deployment checkpoints.
+locally and 30 days on the backup disk. `restore-drill.sh` restores the newest
+archive dump into an isolated temporary database, validates the migration and
+table count, and removes the temporary database automatically.
 
 ## Confirmed production facts
 
