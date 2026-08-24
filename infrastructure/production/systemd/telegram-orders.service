@@ -1,8 +1,8 @@
 [Unit]
 Description=Telegram Orders Docker Compose stack
 RequiresMountsFor=/mnt/ai
-After=docker.service network-online.target mnt-ai.mount
-Requires=docker.service mnt-ai.mount
+After=docker.service network-online.target
+Requires=docker.service
 Wants=network-online.target
 
 [Service]
