@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://telegram_orders:development-only@db/telegram_orders"
     telegram_bot_token: str = ""
     telegram_admin_ids: str = ""
+    telegram_webapp_url: str = ""
     telegram_init_data_max_age_seconds: int = 3600
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
@@ -20,6 +21,13 @@ class Settings(BaseSettings):
     def production_secret_is_not_default(cls, value: str, info):
         if info.data.get("app_env") == "production" and "development" in value:
             raise ValueError("APP_SECRET must be replaced in production")
+        return value
+
+    @field_validator("telegram_webapp_url")
+    @classmethod
+    def production_webapp_uses_https(cls, value: str, info):
+        if info.data.get("app_env") == "production" and not value.startswith("https://"):
+            raise ValueError("TELEGRAM_WEBAPP_URL must use HTTPS in production")
         return value
 
     @property

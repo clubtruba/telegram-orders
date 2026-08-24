@@ -35,6 +35,7 @@ POSTGRES_PASSWORD=$postgres_password
 DATABASE_URL=postgresql+asyncpg://telegram_orders:$postgres_password@db:5432/telegram_orders
 TELEGRAM_BOT_TOKEN=$telegram_orders_bot_token
 TELEGRAM_ADMIN_IDS=252246696
+TELEGRAM_WEBAPP_URL=https://orders.papamio.es
 TELEGRAM_INIT_DATA_MAX_AGE_SECONDS=3600
 CORS_ORIGINS=https://orders.papamio.es
 EOF

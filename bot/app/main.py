@@ -5,7 +5,14 @@ from uuid import UUID
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums import ChatType
 from aiogram.filters import CommandStart
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    MenuButtonWebApp,
+    Message,
+    WebAppInfo,
+)
 
 from app.core.config import get_settings
 from app.db.session import SessionFactory
@@ -31,6 +38,11 @@ def confirm_keyboard(draft_id: UUID) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="✅ Добавить заказ", callback_data=f"draft:confirm:{draft_id}")]])
 
 
+def webapp_keyboard(url: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🛍 Открыть мои заказы", web_app=WebAppInfo(url=url))]])
+
+
 async def identity(event: Message | CallbackQuery):
     user = event.from_user
     if user is None:
@@ -46,7 +58,11 @@ async def start(message: Message):
     if message.chat.type != ChatType.PRIVATE:
         return
     await identity(message)
-    await message.answer("Добро пожаловать. Чтобы сделать заказ, отправьте мне ссылку на товар.")
+    webapp_url = get_settings().telegram_webapp_url
+    await message.answer(
+        "Добро пожаловать. Чтобы сделать заказ, отправьте мне ссылку на товар.",
+        reply_markup=webapp_keyboard(webapp_url) if webapp_url else None,
+    )
 
 
 @router.message(F.text)
@@ -100,10 +116,17 @@ async def confirm(callback: CallbackQuery):
 
 
 async def main():
-    token = get_settings().telegram_bot_token
+    settings = get_settings()
+    token = settings.telegram_bot_token
     if not token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is required to run the bot profile")
-    await dispatcher.start_polling(Bot(token=token))
+    async with Bot(token=token) as bot:
+        if settings.telegram_webapp_url:
+            await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(
+                text="Мои заказы",
+                web_app=WebAppInfo(url=settings.telegram_webapp_url),
+            ))
+        await dispatcher.start_polling(bot)
 
 
 if __name__ == "__main__":
