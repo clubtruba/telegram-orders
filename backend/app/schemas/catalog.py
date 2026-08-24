@@ -35,3 +35,8 @@ class DashboardResponse(BaseModel):
     on_the_way: int
     received: int
     assigned_to_shipment: int
+
+
+class ItemStatusUpdateRequest(BaseModel):
+    status: ItemStatus
+    reason: str | None = None

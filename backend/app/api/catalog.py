@@ -2,12 +2,20 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import RequestActor, get_request_actor
 from app.db.session import get_session
 from app.models import Customer, Item, ItemStatus, UserRole
-from app.schemas.catalog import CustomerResponse, DashboardResponse, ItemResponse
+from app.domain.item_workflow import InvalidItemTransition
+from app.schemas.catalog import (
+    CustomerResponse,
+    DashboardResponse,
+    ItemResponse,
+    ItemStatusUpdateRequest,
+)
+from app.services.items import ItemService
 
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(get_request_actor)])
 
@@ -77,3 +85,25 @@ async def warehouse(actor: RequestActor = Depends(get_request_actor),
     query = select(Item).where(Item.status.in_([
         ItemStatus.RECEIVED, ItemStatus.ASSIGNED_TO_SHIPMENT])).order_by(Item.customer_id)
     return list((await session.scalars(query)).all())
+
+
+@router.patch("/admin/items/{item_id}/status", response_model=ItemResponse, tags=["admin"])
+async def update_item_status(
+    item_id: UUID,
+    command: ItemStatusUpdateRequest,
+    actor: RequestActor = Depends(get_request_actor),
+    session: AsyncSession = Depends(get_session),
+):
+    actor.require_admin()
+    try:
+        item = await ItemService(session).transition(
+            item_id, command.status, actor.app_user_id, command.reason
+        )
+        await session.commit()
+        return item
+    except NoResultFound as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found") from exc
+    except InvalidItemTransition as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
