@@ -2,6 +2,11 @@
 .item-details a { display: inline-block; margin: 7px 0; color: var(--tg-theme-link-color, #2678d9); font-weight: 700; text-decoration: none; }
 .item-details small { display: block; margin-top: 10px; color: var(--tg-theme-hint-color, #657168); font-size: 10px; overflow-wrap: anywhere; }
 .correction { border: 0; background: transparent; color: var(--tg-theme-link-color, #2678d9); font-size: 11px; }
+.correction-panel { width: 100%; }
+.correction-panel summary { cursor: pointer; color: var(--tg-theme-link-color, #2678d9); font-size: 11px; font-weight: 700; }
+.correction-panel form { display: grid; gap: 8px; margin-top: 8px; }
+.correction-panel input { border: 1px solid #46504624; border-radius: 9px; padding: 9px; background: var(--tg-theme-bg-color, #f4f1e9); color: var(--tg-theme-text-color, #172019); font: inherit; }
+.correction-panel .primary { min-height: 38px; }
 .error-banner { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding: 12px 14px; border-radius: 14px; background: #fee7df; color: #8d3420; }
 .error-banner button { border: 0; background: transparent; color: inherit; font-size: 20px; }
 .profile-form { display: grid; gap: 14px; }
