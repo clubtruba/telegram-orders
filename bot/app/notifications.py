@@ -27,7 +27,11 @@ STATUS_LABELS = {
 def notification_text(event: NotificationOutbox) -> str:
     target = str(event.payload.get("to", ""))
     item_id = str(event.payload.get("item_id", ""))
-    return f"Статус заказа {item_id} изменён: {STATUS_LABELS.get(target, target)}."
+    text = f"Статус заказа {item_id} изменён: {STATUS_LABELS.get(target, target)}."
+    tracking_number = event.payload.get("tracking_number")
+    if tracking_number:
+        text += f"\nТрек-номер отправления: {tracking_number}."
+    return text
 
 
 async def deliver_one(bot: Bot) -> bool:

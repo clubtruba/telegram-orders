@@ -11,6 +11,7 @@ from app.models import (
     ItemStatus,
     ItemStatusHistory,
     ShipmentItem,
+    ShipmentStatus,
     UserRole,
 )
 from app.services.shipments import CreateShipmentCommand, ShipmentService
@@ -78,5 +79,13 @@ async def test_create_shipment_snapshots_address_and_reserves_item():
             assert history is not None
             assert history.from_status is ItemStatus.RECEIVED
             assert history.to_status is ItemStatus.ASSIGNED_TO_SHIPMENT
+
+            await ShipmentService(session).dispatch(
+                shipment.id, "Correos", "ES123456789", user.id
+            )
+            assert shipment.status is ShipmentStatus.SHIPPED
+            assert shipment.carrier == "Correos"
+            assert shipment.tracking_number == "ES123456789"
+            assert item.status is ItemStatus.SHIPPED
 
             await session.rollback()

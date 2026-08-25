@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
     CustomerAddress,
+    Customer,
     CustomerShipment,
     AuditLog,
     Item,
@@ -14,6 +16,7 @@ from app.models import (
     ItemStatusHistory,
     ShipmentItem,
     ShipmentStatus,
+    NotificationOutbox,
 )
 
 
@@ -113,5 +116,73 @@ class ShipmentService:
                 },
             )
         )
+        await self.session.flush()
+        return shipment
+
+    async def dispatch(
+        self,
+        shipment_id: UUID,
+        carrier: str,
+        tracking_number: str,
+        actor_user_id: UUID,
+    ) -> CustomerShipment:
+        shipment = await self.session.scalar(
+            select(CustomerShipment)
+            .where(CustomerShipment.id == shipment_id)
+            .with_for_update()
+        )
+        if shipment is None:
+            raise ShipmentValidationError("shipment not found")
+        if shipment.status is not ShipmentStatus.PREPARING:
+            raise ShipmentValidationError("only preparing shipment can be dispatched")
+        links = list((await self.session.scalars(
+            select(ShipmentItem).where(ShipmentItem.shipment_id == shipment_id)
+        )).all())
+        if not links:
+            raise ShipmentValidationError("shipment has no items")
+        if len(carrier.strip()) < 2 or len(tracking_number.strip()) < 3:
+            raise ShipmentValidationError("carrier and tracking number are required")
+        items = list((await self.session.scalars(
+            select(Item).where(Item.id.in_([link.item_id for link in links])).with_for_update()
+        )).all())
+        shipment.carrier = carrier.strip()
+        shipment.tracking_number = tracking_number.strip()
+        shipment.status = ShipmentStatus.SHIPPED
+        shipment.shipped_at = datetime.now(timezone.utc)
+        recipient_user_id = await self.session.scalar(
+            select(Customer.app_user_id).where(Customer.id == shipment.customer_id)
+        )
+        for item in items:
+            previous = item.status
+            item.status = ItemStatus.SHIPPED
+            self.session.add(ItemStatusHistory(
+                item_id=item.id,
+                from_status=previous,
+                to_status=ItemStatus.SHIPPED,
+                changed_by_user_id=actor_user_id,
+                reason=f"shipment {shipment.id}; tracking {shipment.tracking_number}",
+            ))
+            if recipient_user_id is not None:
+                self.session.add(NotificationOutbox(
+                    recipient_user_id=recipient_user_id,
+                    event_type="ITEM_STATUS_CHANGED",
+                    payload={
+                        "item_id": str(item.id),
+                        "from": previous.value,
+                        "to": ItemStatus.SHIPPED.value,
+                        "tracking_number": shipment.tracking_number,
+                    },
+                ))
+        self.session.add(AuditLog(
+            actor_user_id=actor_user_id,
+            action="SHIPMENT_DISPATCHED",
+            entity_type="CustomerShipment",
+            entity_id=shipment.id,
+            payload={
+                "carrier": shipment.carrier,
+                "tracking_number": shipment.tracking_number,
+                "item_ids": [str(item.id) for item in items],
+            },
+        ))
         await self.session.flush()
         return shipment

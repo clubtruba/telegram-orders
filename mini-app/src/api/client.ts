@@ -1,4 +1,4 @@
-import type { AuthMe, Customer, CustomerProfile, Dashboard, Item, ItemStatus, PaymentEvidence } from '../types'
+import type { AuthMe, Customer, CustomerProfile, Dashboard, Item, ItemStatus, PaymentEvidence, Shipment } from '../types'
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
 export class ApiError extends Error { constructor(public status:number, message:string) { super(message) } }
 const fieldLabels:Record<string,string>={display_name:'ФИО',phone:'Телефон',country_code:'Страна',postal_code:'Индекс',region:'Регион',city:'Город',address_line1:'Улица, дом, квартира',address_line2:'Дополнение к адресу',reason:'Причина'}
@@ -18,6 +18,8 @@ export const api = {
   me:(data:string)=>request<AuthMe>('/auth/me',data), dashboard:(data:string)=>request<Dashboard>('/dashboard',data),
   items:(data:string)=>request<Item[]>('/items',data), customers:(data:string)=>request<Customer[]>('/admin/customers',data),
   warehouse:(data:string)=>request<Item[]>('/admin/warehouse',data),
+  shipments:(data:string)=>request<Shipment[]>('/shipments',data),
+  createShipment:(data:string,customerId:string,itemIds:string[],carrier:string,trackingNumber:string)=>request<Shipment>(`/admin/customers/${customerId}/shipments`,data,{method:'POST',body:JSON.stringify({item_ids:itemIds,carrier,tracking_number:trackingNumber})}),
   updateItemStatus:(data:string,id:string,status:ItemStatus)=>request<Item>(`/admin/items/${id}/status`,data,{method:'PATCH',body:JSON.stringify({status})}),
   correctItemStatus:(data:string,id:string,status:ItemStatus,reason:string)=>request<Item>(`/admin/items/${id}/status-correction`,data,{method:'PATCH',body:JSON.stringify({status,reason})}),
   profile:(data:string)=>request<CustomerProfile>('/profile',data),

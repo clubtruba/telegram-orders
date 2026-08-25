@@ -10,20 +10,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import RequestActor, get_request_actor
 from app.core.config import get_settings
 from app.db.session import get_session
-from app.models import Customer, CustomerAddress, Item, ItemStatus, PaymentEvidence, UserRole
+from app.models import (
+    Customer,
+    CustomerAddress,
+    CustomerShipment,
+    Item,
+    ItemStatus,
+    PaymentEvidence,
+    UserRole,
+)
 from app.domain.item_workflow import InvalidItemTransition
 from app.schemas.catalog import (
     CustomerProfileResponse,
     CustomerProfileUpdateRequest,
     CustomerResponse,
+    CreateShipmentRequest,
     DashboardResponse,
     ItemResponse,
     ItemStatusCorrectionRequest,
     ItemStatusUpdateRequest,
     PaymentEvidenceResponse,
+    ShipmentResponse,
 )
 from app.services.items import ItemService
 from app.services.payment_evidence import PaymentEvidenceError, PaymentEvidenceService
+from app.services.shipments import CreateShipmentCommand, ShipmentService, ShipmentValidationError
 
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(get_request_actor)])
 
@@ -161,7 +172,64 @@ async def dashboard(actor: RequestActor = Depends(get_request_actor),
         on_the_way=counts.get(ItemStatus.ON_THE_WAY_TO_US, 0),
         received=counts.get(ItemStatus.RECEIVED, 0),
         assigned_to_shipment=counts.get(ItemStatus.ASSIGNED_TO_SHIPMENT, 0),
+        ordered=counts.get(ItemStatus.TO_BUY, 0),
+        purchased=sum(counts.get(value, 0) for value in (
+            ItemStatus.ORDERED, ItemStatus.ON_THE_WAY_TO_US, ItemStatus.READY_FOR_PICKUP
+        )),
+        in_spain=sum(counts.get(value, 0) for value in (
+            ItemStatus.PURCHASED_OFFLINE, ItemStatus.RECEIVED, ItemStatus.ASSIGNED_TO_SHIPMENT
+        )),
+        shipped=counts.get(ItemStatus.SHIPPED, 0) + counts.get(ItemStatus.DELIVERED, 0),
     )
+
+
+@router.get("/shipments", response_model=list[ShipmentResponse], tags=["shipments"])
+async def list_shipments(
+    actor: RequestActor = Depends(get_request_actor),
+    session: AsyncSession = Depends(get_session),
+):
+    query = select(CustomerShipment).order_by(CustomerShipment.created_at.desc())
+    if actor.role is UserRole.CUSTOMER:
+        if actor.customer_id is None:
+            return []
+        query = query.where(CustomerShipment.customer_id == actor.customer_id)
+    return list((await session.scalars(query)).all())
+
+
+@router.post(
+    "/admin/customers/{customer_id}/shipments",
+    response_model=ShipmentResponse,
+    tags=["admin"],
+)
+async def create_and_dispatch_shipment(
+    customer_id: UUID,
+    command: CreateShipmentRequest,
+    actor: RequestActor = Depends(get_request_actor),
+    session: AsyncSession = Depends(get_session),
+):
+    actor.require_admin()
+    address_id = await session.scalar(select(CustomerAddress.id).where(
+        CustomerAddress.customer_id == customer_id,
+        CustomerAddress.is_default.is_(True),
+    ))
+    if address_id is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Customer has no address")
+    service = ShipmentService(session)
+    try:
+        shipment = await service.create(CreateShipmentCommand(
+            customer_id=customer_id,
+            address_id=address_id,
+            item_ids=tuple(command.item_ids),
+            actor_user_id=actor.app_user_id,
+        ))
+        await service.dispatch(
+            shipment.id, command.carrier, command.tracking_number, actor.app_user_id
+        )
+        await session.commit()
+        return shipment
+    except ShipmentValidationError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @router.get("/admin/warehouse", response_model=list[ItemResponse], tags=["admin"])

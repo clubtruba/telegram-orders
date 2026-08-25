@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models import CollectionStatus, ItemStatus
+from app.models import CollectionStatus, ItemStatus, ShipmentStatus
 
 
 class ItemResponse(BaseModel):
@@ -35,6 +35,26 @@ class DashboardResponse(BaseModel):
     on_the_way: int
     received: int
     assigned_to_shipment: int
+    ordered: int
+    purchased: int
+    in_spain: int
+    shipped: int
+
+
+class ShipmentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    customer_id: UUID
+    status: ShipmentStatus
+    carrier: str | None
+    tracking_number: str | None
+    created_at: datetime
+
+
+class CreateShipmentRequest(BaseModel):
+    item_ids: list[UUID] = Field(min_length=1)
+    carrier: str = Field(min_length=2, max_length=100)
+    tracking_number: str = Field(min_length=3, max_length=200)
 
 
 class ItemStatusUpdateRequest(BaseModel):

@@ -10,8 +10,10 @@ from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    KeyboardButton,
     MenuButtonWebApp,
     Message,
+    ReplyKeyboardMarkup,
     WebAppInfo,
 )
 
@@ -67,6 +69,21 @@ def profile_keyboard(url: str) -> InlineKeyboardMarkup:
         )]])
 
 
+def persistent_webapp_keyboard(url: str) -> ReplyKeyboardMarkup:
+    separator = "&" if "?" in url else "?"
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(
+                text="📝 Заполнить форму",
+                web_app=WebAppInfo(url=f"{url}{separator}view=profile"),
+            )],
+            [KeyboardButton(text="🛍 Мои заказы", web_app=WebAppInfo(url=url))],
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+    )
+
+
 async def identity(event: Message | CallbackQuery):
     user = event.from_user
     if user is None:
@@ -85,7 +102,7 @@ async def start(message: Message):
     webapp_url = get_settings().telegram_webapp_url
     await message.answer(
         "Добро пожаловать. Чтобы сделать заказ, отправьте мне ссылку на товар.",
-        reply_markup=webapp_keyboard(webapp_url) if webapp_url else None,
+        reply_markup=persistent_webapp_keyboard(webapp_url) if webapp_url else None,
     )
 
 
@@ -108,7 +125,7 @@ async def receive_url(message: Message):
         await message.answer(
             "Перед первым заказом заполните ФИО, телефон и адрес в разделе «Профиль», "
             "затем отправьте ссылку ещё раз.",
-            reply_markup=profile_keyboard(webapp_url) if webapp_url else None,
+            reply_markup=persistent_webapp_keyboard(webapp_url) if webapp_url else None,
         )
         return
     async with SessionFactory() as session, session.begin():
@@ -180,7 +197,8 @@ async def confirm(callback: CallbackQuery):
         await callback.answer(str(exc), show_alert=True)
         return
     await callback.message.edit_text(
-        f"✅ Заказ {item_id} добавлен. Статус: ожидает покупки.\n\n"
+        f"✅ Заказ {item_id} успешно оформлен. Статус: ожидает покупки.\n"
+        "Мы уведомим вас здесь, когда статус изменится.\n\n"
         f"Оплата по заказу {item_id}\n"
         "Если вы уже оплатили товар, ответьте на это сообщение фотографией или скриншотом "
         "чека. Можно также прислать текст с информацией об оплате.",
@@ -192,8 +210,14 @@ async def confirm(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("payment:skip:"))
 async def skip_payment(callback: CallbackQuery):
     if callback.message is not None:
+        item_id = (callback.data or "").rsplit(":", 1)[-1]
         await callback.message.edit_reply_markup(reply_markup=None)
-        await callback.message.answer("Информация об оплате пропущена. Её можно добавить позже.")
+        url = get_settings().telegram_webapp_url
+        await callback.message.answer(
+            f"✅ Заказ {item_id} оформлен. Информация об оплате пропущена. "
+            "На этом оформление завершено; мы сообщим здесь об изменениях статуса.",
+            reply_markup=persistent_webapp_keyboard(url) if url else None,
+        )
     await callback.answer()
 
 
@@ -205,7 +229,12 @@ async def receive_payment_evidence(message: Message):
     if match is None:
         return
     if message.text and message.text.strip().lower() in {"нет", "не оплачивал", "пропустить"}:
-        await message.answer("Информация об оплате пропущена. Её можно добавить позже.")
+        url = get_settings().telegram_webapp_url
+        await message.answer(
+            f"✅ Заказ {match.group(1)} оформлен. Информация об оплате пропущена. "
+            "На этом оформление завершено; мы сообщим здесь об изменениях статуса.",
+            reply_markup=persistent_webapp_keyboard(url) if url else None,
+        )
         return
     app_user_id, _, _ = await identity(message)
     content = None
@@ -247,7 +276,12 @@ async def receive_payment_evidence(message: Message):
     except PaymentEvidenceError as exc:
         await message.answer(f"Не удалось сохранить подтверждение: {exc}")
         return
-    await message.answer("✅ Информация об оплате сохранена.")
+    url = get_settings().telegram_webapp_url
+    await message.answer(
+        f"✅ Информация об оплате сохранена. Заказ {match.group(1)} оформлен. "
+        "На этом оформление завершено; мы сообщим здесь об изменениях статуса.",
+        reply_markup=persistent_webapp_keyboard(url) if url else None,
+    )
 
 
 async def main():
