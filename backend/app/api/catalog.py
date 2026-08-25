@@ -106,6 +106,7 @@ async def update_profile(
     actor: RequestActor = Depends(get_request_actor),
     session: AsyncSession = Depends(get_session),
 ):
+    actor.require_customer()
     if actor.customer_id is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
     customer = await session.get(Customer, actor.customer_id)
@@ -139,7 +140,7 @@ async def update_profile(
 @router.get("/admin/customers", response_model=list[CustomerResponse], tags=["admin"])
 async def admin_customers(actor: RequestActor = Depends(get_request_actor),
                           session: AsyncSession = Depends(get_session)):
-    actor.require_admin()
+    actor.require_staff()
     return list((await session.scalars(select(Customer).order_by(Customer.display_name))).all())
 
 
@@ -166,7 +167,7 @@ async def dashboard(actor: RequestActor = Depends(get_request_actor),
 @router.get("/admin/warehouse", response_model=list[ItemResponse], tags=["admin"])
 async def warehouse(actor: RequestActor = Depends(get_request_actor),
                     session: AsyncSession = Depends(get_session)):
-    actor.require_admin()
+    actor.require_staff()
     query = select(Item).where(Item.status.in_([
         ItemStatus.RECEIVED, ItemStatus.ASSIGNED_TO_SHIPMENT])).order_by(Item.customer_id)
     return list((await session.scalars(query)).all())
@@ -225,7 +226,7 @@ async def list_payment_evidence(
     actor: RequestActor = Depends(get_request_actor),
     session: AsyncSession = Depends(get_session),
 ):
-    actor.require_admin()
+    actor.require_staff()
     evidence = (await session.scalars(
         select(PaymentEvidence).order_by(PaymentEvidence.created_at.desc())
     )).all()
@@ -271,7 +272,7 @@ async def payment_evidence_image(
     actor: RequestActor = Depends(get_request_actor),
     session: AsyncSession = Depends(get_session),
 ):
-    actor.require_admin()
+    actor.require_staff()
     evidence = await session.get(PaymentEvidence, evidence_id)
     if evidence is None or not evidence.stored_filename:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")

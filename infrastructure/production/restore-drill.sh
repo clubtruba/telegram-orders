@@ -29,7 +29,7 @@ trap cleanup EXIT
 migration="$("${compose[@]}" exec -T db psql -U telegram_orders -d "$restore_db" -Atqc 'SELECT version_num FROM alembic_version')"
 table_count="$("${compose[@]}" exec -T db psql -U telegram_orders -d "$restore_db" -Atqc "SELECT count(*) FROM pg_tables WHERE schemaname = 'public'")"
 
-test "$migration" = "0005_payment_evidence" || { echo "ERROR: unexpected migration: $migration" >&2; exit 1; }
+test "$migration" = "0006_viewer_role" || { echo "ERROR: unexpected migration: $migration" >&2; exit 1; }
 test "$table_count" -ge 10 || { echo "ERROR: too few restored tables: $table_count" >&2; exit 1; }
 
 echo "Restore drill passed: migration=$migration tables=$table_count source=$(basename "$dump_file")"

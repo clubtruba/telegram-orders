@@ -8,6 +8,7 @@ from app.db.base import Base, TimestampMixin, UUIDMixin
 
 class UserRole(str, enum.Enum):
     ADMIN = "ADMIN"
+    VIEWER = "VIEWER"
     CUSTOMER = "CUSTOMER"
 
 

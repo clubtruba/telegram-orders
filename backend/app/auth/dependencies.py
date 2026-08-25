@@ -19,12 +19,20 @@ class RequestActor:
     customer_id: UUID | None
 
     def require_customer_access(self, customer_id: UUID) -> None:
-        if self.role is not UserRole.ADMIN and self.customer_id != customer_id:
+        if self.role not in {UserRole.ADMIN, UserRole.VIEWER} and self.customer_id != customer_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    def require_staff(self) -> None:
+        if self.role not in {UserRole.ADMIN, UserRole.VIEWER}:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
 
     def require_admin(self) -> None:
         if self.role is not UserRole.ADMIN:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+
+    def require_customer(self) -> None:
+        if self.role is not UserRole.CUSTOMER:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customer access required")
 
 
 async def get_request_actor(

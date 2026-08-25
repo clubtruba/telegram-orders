@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'CUSTOMER'
+export type Role = 'ADMIN' | 'VIEWER' | 'CUSTOMER'
 export type ItemStatus = 'TO_BUY'|'ORDERED'|'PURCHASED_OFFLINE'|'ON_THE_WAY_TO_US'|'READY_FOR_PICKUP'|'RECEIVED'|'ASSIGNED_TO_SHIPMENT'|'SHIPPED'|'DELIVERED'|'CANCELLED'|'RETURN_IN_PROGRESS'|'RETURNED'
 export interface AuthMe { app_user_id: string; role: Role; customer_id: string | null }
 export interface Dashboard { to_buy: number; on_the_way: number; received: number; assigned_to_shipment: number }

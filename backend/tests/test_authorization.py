@@ -32,6 +32,18 @@ def test_customer_cannot_use_admin_routes():
     assert exc.value.status_code == 403
 
 
+def test_viewer_can_read_staff_data_but_cannot_mutate():
+    actor = RequestActor(uuid4(), 43, UserRole.VIEWER, uuid4())
+    actor.require_staff()
+    actor.require_customer_access(uuid4())
+    with pytest.raises(HTTPException) as admin_exc:
+        actor.require_admin()
+    with pytest.raises(HTTPException) as customer_exc:
+        actor.require_customer()
+    assert admin_exc.value.status_code == 403
+    assert customer_exc.value.status_code == 403
+
+
 def test_customer_response_has_no_internal_note_or_financial_visibility():
     assert "internal_note" not in CustomerResponse.model_fields
     assert "financial_details_visible" not in CustomerResponse.model_fields

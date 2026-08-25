@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Customer, CustomerAddress, DraftStatus, Item, ItemDraft, ItemStatus
+from app.models import AppUser, Customer, CustomerAddress, DraftStatus, Item, ItemDraft, ItemStatus, UserRole
 
 
 class DraftError(ValueError):
@@ -68,6 +68,9 @@ class DraftService:
         return item
 
     async def _locked_open_draft(self, draft_id: UUID, user_id: UUID) -> ItemDraft:
+        role = await self.session.scalar(select(AppUser.role).where(AppUser.id == user_id))
+        if role is not UserRole.CUSTOMER:
+            raise DraftError("Этот аккаунт имеет доступ только для просмотра.")
         draft = await self.session.scalar(select(ItemDraft).where(
             ItemDraft.id == draft_id, ItemDraft.customer_user_id == user_id).with_for_update())
         if draft is None:

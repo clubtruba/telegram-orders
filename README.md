@@ -19,6 +19,10 @@ product URL, follow guarded status transitions, make audited corrections, and
 attach payment notes or receipt images. Status changes are delivered through
 the Telegram notification outbox worker.
 
+The `VIEWER` staff role has the same operational visibility as the administrator
+but no write permissions. Mutation endpoints remain restricted to `ADMIN`, so
+read-only access is enforced by the API as well as the Mini App interface.
+
 ## Local start
 
 1. Copy `.env.example` to `.env` and replace the development secrets.

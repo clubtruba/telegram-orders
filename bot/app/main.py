@@ -74,7 +74,7 @@ async def identity(event: Message | CallbackQuery):
     async with SessionFactory() as session, session.begin():
         app_user, customer = await UserService(session).register_customer(
             user.id, user.first_name, user.last_name, user.username)
-        return app_user.id, customer.id
+        return app_user.id, customer.id, app_user.role
 
 
 @router.message(CommandStart())
@@ -97,7 +97,10 @@ async def receive_url(message: Message):
     if match is None:
         await message.answer("Пришлите ссылку на товар, начинающуюся с https://")
         return
-    app_user_id, customer_id = await identity(message)
+    app_user_id, customer_id, role = await identity(message)
+    if role.value == "VIEWER":
+        await message.answer("Для этого аккаунта включён режим просмотра без создания заказов.")
+        return
     async with SessionFactory() as session:
         profile_complete = await UserService(session).has_complete_delivery_profile(customer_id)
     if not profile_complete:
@@ -121,7 +124,7 @@ async def choose_size(callback: CallbackQuery):
         await callback.answer()
         return
     _, _, raw_id, raw_size = (callback.data or "").split(":", 3)
-    app_user_id, _ = await identity(callback)
+    app_user_id, _, _ = await identity(callback)
     async with SessionFactory() as session, session.begin():
         await DraftService(session).set_size(
             UUID(raw_id), app_user_id, None if raw_size == "-" else raw_size)
@@ -140,7 +143,7 @@ async def receive_comment(message: Message):
     match = re.search(r"Комментарий к черновику ([0-9a-f-]{36})", message.reply_to_message.text or "")
     if match is None:
         return
-    app_user_id, _ = await identity(message)
+    app_user_id, _, _ = await identity(message)
     draft_id = UUID(match.group(1))
     async with SessionFactory() as session, session.begin():
         await DraftService(session).set_comment(draft_id, app_user_id, message.text)
@@ -153,7 +156,7 @@ async def skip_comment(callback: CallbackQuery):
         await callback.answer()
         return
     draft_id = UUID((callback.data or "").rsplit(":", 1)[-1])
-    app_user_id, _ = await identity(callback)
+    app_user_id, _, _ = await identity(callback)
     async with SessionFactory() as session, session.begin():
         await DraftService(session).set_comment(draft_id, app_user_id, None)
     await callback.message.edit_text(
@@ -168,7 +171,7 @@ async def confirm(callback: CallbackQuery):
         await callback.answer()
         return
     raw_id = (callback.data or "").rsplit(":", 1)[-1]
-    app_user_id, customer_id = await identity(callback)
+    app_user_id, customer_id, _ = await identity(callback)
     try:
         async with SessionFactory() as session, session.begin():
             item = await DraftService(session).confirm(UUID(raw_id), app_user_id, customer_id)
@@ -204,7 +207,7 @@ async def receive_payment_evidence(message: Message):
     if message.text and message.text.strip().lower() in {"нет", "не оплачивал", "пропустить"}:
         await message.answer("Информация об оплате пропущена. Её можно добавить позже.")
         return
-    app_user_id, _ = await identity(message)
+    app_user_id, _, _ = await identity(message)
     content = None
     mime_type = None
     original_filename = None

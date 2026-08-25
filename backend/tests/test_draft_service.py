@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import select
 
 from app.db.session import SessionFactory
-from app.models import CustomerAddress, DraftStatus, Item, ItemDraft
+from app.models import CustomerAddress, DraftStatus, Item, ItemDraft, UserRole
 from app.services.drafts import DraftError, DraftService, OpenDraftCommand
 from app.services.users import UserService
 
@@ -64,4 +64,22 @@ async def test_confirmation_requires_complete_delivery_profile():
             ))
             with pytest.raises(DraftError, match="заполните"):
                 await service.confirm(draft.id, user.id, customer.id)
+            await session.rollback()
+
+
+@pytest.mark.asyncio
+async def test_viewer_cannot_modify_existing_draft():
+    async with SessionFactory() as session:
+        async with session.begin():
+            user, _ = await UserService(session).register_customer(
+                9_000_000_004, "Read", "Only", "read_only"
+            )
+            service = DraftService(session)
+            draft = await service.open(OpenDraftCommand(
+                user.id, 9_000_000_004, 104, "https://example.com/read-only"
+            ))
+            user.role = UserRole.VIEWER
+            await session.flush()
+            with pytest.raises(DraftError, match="только для просмотра"):
+                await service.set_size(draft.id, user.id, "M")
             await session.rollback()
