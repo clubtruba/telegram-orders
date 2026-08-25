@@ -281,7 +281,10 @@ async def warehouse(actor: RequestActor = Depends(get_request_actor),
                     session: AsyncSession = Depends(get_session)):
     actor.require_staff()
     query = select(Item).where(Item.status.in_([
-        ItemStatus.RECEIVED, ItemStatus.ASSIGNED_TO_SHIPMENT])).order_by(Item.customer_id)
+        ItemStatus.PURCHASED_OFFLINE,
+        ItemStatus.RECEIVED,
+        ItemStatus.ASSIGNED_TO_SHIPMENT,
+    ])).order_by(Item.customer_id)
     return list((await session.scalars(query)).all())
 
 
