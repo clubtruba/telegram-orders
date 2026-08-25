@@ -9,7 +9,7 @@
 .profile-form input { width: 100%; border: 1px solid #46504624; border-radius: 12px; padding: 12px; background: var(--tg-theme-bg-color, #f4f1e9); color: var(--tg-theme-text-color, #172019); font: inherit; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .primary { min-height: 48px; border: 0; border-radius: 14px; background: var(--tg-theme-button-color, #2678d9); color: var(--tg-theme-button-text-color, #fff); font-weight: 750; }
-.form-message { margin: 0; color: var(--tg-theme-hint-color, #657168); }
+.form-message { margin: 0; color: var(--tg-theme-hint-color, #657168); white-space: pre-line; }
 .payment-panel { margin-top: 14px; padding-top: 12px; border-top: 1px solid #46504618; }
 .payment-panel summary { cursor: pointer; color: var(--tg-theme-link-color, #2678d9); font-size: 12px; font-weight: 750; }
 .payment-panel form { display: grid; gap: 8px; margin-top: 10px; }

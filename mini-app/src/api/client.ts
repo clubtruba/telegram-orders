@@ -1,6 +1,7 @@
 import type { AuthMe, Customer, CustomerProfile, Dashboard, Item, ItemStatus, PaymentEvidence } from '../types'
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
 export class ApiError extends Error { constructor(public status:number, message:string) { super(message) } }
+const fieldLabels:Record<string,string>={display_name:'ФИО',phone:'Телефон',country_code:'Страна',postal_code:'Индекс',region:'Регион',city:'Город',address_line1:'Улица, дом, квартира',address_line2:'Дополнение к адресу',reason:'Причина'}
 async function request<T>(path:string, initData:string, options:RequestInit={}): Promise<T> {
   const headers=new Headers(options.headers)
   headers.set('X-Telegram-Init-Data',initData)
@@ -8,7 +9,7 @@ async function request<T>(path:string, initData:string, options:RequestInit={}):
   const response = await fetch(`${baseUrl}${path}`, {...options,headers})
   if (!response.ok) {
     let message = `Request failed (${response.status})`
-    try { const body = await response.json(); if (typeof body.detail === 'string') message = body.detail } catch { /* not JSON */ }
+    try { const body = await response.json(); if(typeof body.detail==='string')message=body.detail;else if(Array.isArray(body.detail))message=body.detail.map((issue:{loc?:unknown[];msg?:string})=>{const field=String(issue.loc?.at(-1)??'Поле');return `${fieldLabels[field]??field}: ${issue.msg??'проверьте значение'}`}).join('\n') } catch { /* not JSON */ }
     throw new ApiError(response.status, message)
   }
   return response.json() as Promise<T>
