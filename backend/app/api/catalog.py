@@ -1,23 +1,57 @@
 from uuid import UUID
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import RequestActor, get_request_actor
+from app.core.config import get_settings
 from app.db.session import get_session
-from app.models import Customer, Item, ItemStatus, UserRole
+from app.models import Customer, CustomerAddress, Item, ItemStatus, PaymentEvidence, UserRole
 from app.domain.item_workflow import InvalidItemTransition
 from app.schemas.catalog import (
+    CustomerProfileResponse,
+    CustomerProfileUpdateRequest,
     CustomerResponse,
     DashboardResponse,
     ItemResponse,
+    ItemStatusCorrectionRequest,
     ItemStatusUpdateRequest,
+    PaymentEvidenceResponse,
 )
 from app.services.items import ItemService
+from app.services.payment_evidence import PaymentEvidenceError, PaymentEvidenceService
 
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(get_request_actor)])
+
+
+def profile_response(customer: Customer, address: CustomerAddress | None) -> CustomerProfileResponse:
+    return CustomerProfileResponse(
+        display_name=customer.display_name,
+        phone=customer.phone,
+        country_code=address.country_code if address else None,
+        postal_code=address.postal_code if address else None,
+        region=address.region if address else None,
+        city=address.city if address else None,
+        address_line1=address.address_line1 if address else None,
+        address_line2=address.address_line2 if address else None,
+        complete=bool(customer.phone and address),
+    )
+
+
+def evidence_response(evidence: PaymentEvidence) -> PaymentEvidenceResponse:
+    return PaymentEvidenceResponse(
+        id=evidence.id,
+        item_id=evidence.item_id,
+        note=evidence.note,
+        original_filename=evidence.original_filename,
+        mime_type=evidence.mime_type,
+        has_image=bool(evidence.stored_filename),
+        created_at=evidence.created_at,
+    )
 
 
 @router.get("/items", response_model=list[ItemResponse], tags=["items"])
@@ -49,6 +83,57 @@ async def get_customer(customer_id: UUID, actor: RequestActor = Depends(get_requ
     if customer is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
     return customer
+
+
+@router.get("/profile", response_model=CustomerProfileResponse, tags=["customers"])
+async def get_profile(actor: RequestActor = Depends(get_request_actor),
+                      session: AsyncSession = Depends(get_session)):
+    if actor.customer_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    customer = await session.get(Customer, actor.customer_id)
+    address = await session.scalar(select(CustomerAddress).where(
+        CustomerAddress.customer_id == actor.customer_id,
+        CustomerAddress.is_default.is_(True),
+    ))
+    if customer is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    return profile_response(customer, address)
+
+
+@router.put("/profile", response_model=CustomerProfileResponse, tags=["customers"])
+async def update_profile(
+    command: CustomerProfileUpdateRequest,
+    actor: RequestActor = Depends(get_request_actor),
+    session: AsyncSession = Depends(get_session),
+):
+    if actor.customer_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    customer = await session.get(Customer, actor.customer_id)
+    if customer is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    address = await session.scalar(select(CustomerAddress).where(
+        CustomerAddress.customer_id == actor.customer_id,
+        CustomerAddress.is_default.is_(True),
+    ).with_for_update())
+    customer.display_name = command.display_name.strip()
+    customer.phone = command.phone.strip()
+    values = command.model_dump(exclude={"display_name"})
+    values["phone"] = customer.phone
+    if address is None:
+        address = CustomerAddress(
+            customer_id=actor.customer_id,
+            label="Основной адрес",
+            recipient_name=customer.display_name,
+            is_default=True,
+            **values,
+        )
+        session.add(address)
+    else:
+        address.recipient_name = customer.display_name
+        for field, value in values.items():
+            setattr(address, field, value.strip() if isinstance(value, str) else value)
+    await session.commit()
+    return profile_response(customer, address)
 
 
 @router.get("/admin/customers", response_model=list[CustomerResponse], tags=["admin"])
@@ -107,3 +192,90 @@ async def update_item_status(
     except InvalidItemTransition as exc:
         await session.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.patch("/admin/items/{item_id}/status-correction", response_model=ItemResponse, tags=["admin"])
+async def correct_item_status(
+    item_id: UUID,
+    command: ItemStatusCorrectionRequest,
+    actor: RequestActor = Depends(get_request_actor),
+    session: AsyncSession = Depends(get_session),
+):
+    actor.require_admin()
+    try:
+        item = await ItemService(session).correct_status(
+            item_id, command.status, actor.app_user_id, command.reason.strip()
+        )
+        await session.commit()
+        return item
+    except NoResultFound as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found") from exc
+    except ValueError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.get(
+    "/admin/payment-evidence",
+    response_model=list[PaymentEvidenceResponse],
+    tags=["admin"],
+)
+async def list_payment_evidence(
+    actor: RequestActor = Depends(get_request_actor),
+    session: AsyncSession = Depends(get_session),
+):
+    actor.require_admin()
+    evidence = (await session.scalars(
+        select(PaymentEvidence).order_by(PaymentEvidence.created_at.desc())
+    )).all()
+    return [evidence_response(value) for value in evidence]
+
+
+@router.post(
+    "/admin/items/{item_id}/payment-evidence",
+    response_model=PaymentEvidenceResponse,
+    tags=["admin"],
+)
+async def add_payment_evidence(
+    item_id: UUID,
+    note: str | None = Form(default=None),
+    image: UploadFile | None = File(default=None),
+    actor: RequestActor = Depends(get_request_actor),
+    session: AsyncSession = Depends(get_session),
+):
+    actor.require_admin()
+    content = await image.read() if image else None
+    try:
+        evidence = await PaymentEvidenceService(
+            session, get_settings().payment_proof_dir
+        ).create(
+            item_id,
+            actor.app_user_id,
+            admin=True,
+            note=note,
+            content=content,
+            mime_type=image.content_type if image else None,
+            original_filename=image.filename if image else None,
+        )
+        await session.commit()
+        return evidence_response(evidence)
+    except PaymentEvidenceError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/admin/payment-evidence/{evidence_id}/image", tags=["admin"])
+async def payment_evidence_image(
+    evidence_id: UUID,
+    actor: RequestActor = Depends(get_request_actor),
+    session: AsyncSession = Depends(get_session),
+):
+    actor.require_admin()
+    evidence = await session.get(PaymentEvidence, evidence_id)
+    if evidence is None or not evidence.stored_filename:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+    path = Path(get_settings().payment_proof_dir) / evidence.stored_filename
+    if not path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+    return FileResponse(path, media_type=evidence.mime_type or "application/octet-stream")

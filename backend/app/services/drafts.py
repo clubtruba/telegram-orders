@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import DraftStatus, Item, ItemDraft, ItemStatus
+from app.models import Customer, CustomerAddress, DraftStatus, Item, ItemDraft, ItemStatus
 
 
 class DraftError(ValueError):
@@ -44,8 +44,21 @@ class DraftService:
         await self.session.flush()
         return draft
 
+    async def set_comment(self, draft_id: UUID, user_id: UUID, comment: str | None) -> ItemDraft:
+        draft = await self._locked_open_draft(draft_id, user_id)
+        draft.customer_note = comment.strip()[:2000] if comment and comment.strip() else None
+        await self.session.flush()
+        return draft
+
     async def confirm(self, draft_id: UUID, user_id: UUID, customer_id: UUID) -> Item:
         draft = await self._locked_open_draft(draft_id, user_id)
+        customer = await self.session.get(Customer, customer_id)
+        address = await self.session.scalar(select(CustomerAddress).where(
+            CustomerAddress.customer_id == customer_id,
+            CustomerAddress.is_default.is_(True),
+        ))
+        if customer is None or not customer.phone or address is None:
+            raise DraftError("Сначала заполните ФИО, телефон и адрес в разделе «Профиль».")
         item = Item(customer_id=customer_id, product_url=draft.product_url, size=draft.size,
             color=draft.color, quantity=draft.quantity, customer_note=draft.customer_note,
             status=ItemStatus.TO_BUY)

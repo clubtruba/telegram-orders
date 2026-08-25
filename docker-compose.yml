@@ -27,6 +27,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-local-development-bot-token}
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     ports: ["127.0.0.1:8000:8000"]
+    volumes: [payment-proofs:/app/payment-proofs]
     depends_on:
       db: {condition: service_healthy}
     networks: [orders-internal]
@@ -45,6 +46,7 @@ services:
       db: {condition: service_healthy}
       api: {condition: service_started}
     networks: [orders-internal]
+    volumes: [payment-proofs:/app/payment-proofs]
     restart: unless-stopped
     profiles: [bot]
 
@@ -58,6 +60,7 @@ services:
 
 volumes:
   postgres-data:
+  payment-proofs:
 
 networks:
   orders-internal:

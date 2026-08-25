@@ -1,5 +1,12 @@
 from app.models.item import Item, ItemStatus
-from app.models.finance import ItemReturn, Payment, ReturnStatus, ServiceFee, ServiceFeeType
+from app.models.finance import (
+    ItemReturn,
+    Payment,
+    PaymentEvidence,
+    ReturnStatus,
+    ServiceFee,
+    ServiceFeeType,
+)
 from app.models.commerce import (
     AllocationMethod,
     CollectionStatus,
@@ -48,6 +55,7 @@ __all__ = [
     "NotificationOutbox",
     "OutboxStatus",
     "Payment",
+    "PaymentEvidence",
     "ReturnStatus",
     "ServiceFee",
     "ServiceFeeType",

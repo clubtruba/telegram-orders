@@ -4,6 +4,7 @@ from sqlalchemy import select
 from app.db.session import SessionFactory
 from app.models import (
     AppUser,
+    AuditLog,
     CollectionStatus,
     Customer,
     Item,
@@ -65,5 +66,18 @@ async def test_admin_transition_records_history_and_notification():
             assert history.reason == "Purchased by administrator"
             assert notification is not None
             assert notification.payload["to"] == ItemStatus.ORDERED.value
+
+            await ItemService(session).correct_status(
+                item.id, ItemStatus.RECEIVED, admin.id, "Incorrect manual status"
+            )
+            audit = await session.scalar(
+                select(AuditLog).where(
+                    AuditLog.entity_id == item.id,
+                    AuditLog.action == "ITEM_STATUS_CORRECTED",
+                )
+            )
+            assert item.status is ItemStatus.RECEIVED
+            assert audit is not None
+            assert audit.payload["reason"] == "Incorrect manual status"
 
             await session.rollback()

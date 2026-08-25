@@ -1,6 +1,6 @@
 # Implementation checkpoints
 
-## CP0 — local bootstrap (current)
+## CP0 — local bootstrap (complete)
 
 - Repository structure and executable local stack.
 - No production-server changes.
@@ -26,6 +26,10 @@
 - Confirm independent backup target and tested restore.
 - Explicit user approval is required before production changes.
 
+CP3 was completed for the initial production release. Subsequent releases must
+repeat local tests, image builds, migration review, backup review and explicit
+deployment steps before changing production.
+
 Prepared production assets live in `infrastructure/production`. The API is
 bound only to `127.0.0.1:8000`; its public HTTPS endpoint will be provided by
 Tailscale Funnel at `https://alex-server.tail684c35.ts.net`.
@@ -33,9 +37,11 @@ Tailscale Funnel at `https://alex-server.tail684c35.ts.net`.
 The project-specific backup timer creates a PostgreSQL custom-format dump under
 `/mnt/ai/backups/telegram-orders/postgres` and copies it to the physically
 separate `/mnt/archive_hdd_serv/telegram-orders/postgres` mount. It keeps 7 days
-locally and 30 days on the backup disk. `restore-drill.sh` restores the newest
-archive dump into an isolated temporary database, validates the migration and
-table count, and removes the temporary database automatically.
+locally and 30 days on the backup disk. Payment evidence files are archived on
+the same schedule under the corresponding `payment-proofs` directories on both
+disks. `restore-drill.sh` restores the newest database dump into an isolated
+temporary database, validates the migration and table count, verifies the
+payment-evidence archive, and removes the temporary database automatically.
 
 ## Confirmed production facts
 

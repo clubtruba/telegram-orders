@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AppUser, CollectionStatus, Customer, UserRole
+from app.models import AppUser, CollectionStatus, Customer, CustomerAddress, UserRole
 
 
 class UserService:
@@ -28,3 +28,13 @@ class UserService:
             self.session.add(customer)
             await self.session.flush()
         return user, customer
+
+    async def has_complete_delivery_profile(self, customer_id) -> bool:
+        customer = await self.session.get(Customer, customer_id)
+        if customer is None or not customer.phone:
+            return False
+        address_id = await self.session.scalar(select(CustomerAddress.id).where(
+            CustomerAddress.customer_id == customer_id,
+            CustomerAddress.is_default.is_(True),
+        ))
+        return address_id is not None

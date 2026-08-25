@@ -52,6 +52,29 @@ class Payment(UUIDMixin, TimestampMixin, Base):
     __table_args__ = (CheckConstraint("amount <> 0", name="non_zero_amount"),)
 
 
+class PaymentEvidence(UUIDMixin, TimestampMixin, Base):
+    __tablename__ = "payment_evidence"
+    item_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("items.id", ondelete="CASCADE"), index=True
+    )
+    submitted_by_user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("app_users.id", ondelete="RESTRICT"), index=True
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+    original_filename: Mapped[str | None] = mapped_column(String(255))
+    stored_filename: Mapped[str | None] = mapped_column(String(255), unique=True)
+    telegram_file_id: Mapped[str | None] = mapped_column(Text)
+    telegram_file_unique_id: Mapped[str | None] = mapped_column(String(255))
+    mime_type: Mapped[str | None] = mapped_column(String(100))
+
+    __table_args__ = (
+        CheckConstraint(
+            "note IS NOT NULL OR stored_filename IS NOT NULL",
+            name="note_or_file_required",
+        ),
+    )
+
+
 class ItemReturn(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "item_returns"
     item_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("items.id", ondelete="RESTRICT"), index=True)
