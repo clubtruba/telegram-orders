@@ -49,6 +49,7 @@ class DashboardResponse(BaseModel):
     purchased: int
     in_spain: int
     shipped: int
+    active_shipments: int
 
 
 class ShipmentResponse(BaseModel):

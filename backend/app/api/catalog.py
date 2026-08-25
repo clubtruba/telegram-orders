@@ -196,14 +196,22 @@ async def admin_customers(actor: RequestActor = Depends(get_request_actor),
 async def dashboard(actor: RequestActor = Depends(get_request_actor),
                     session: AsyncSession = Depends(get_session)):
     query = select(Item.status, func.count(Item.id)).group_by(Item.status)
+    active_shipments_query = select(func.count(func.distinct(ShipmentItem.shipment_id))).join(
+        Item, Item.id == ShipmentItem.item_id
+    ).where(Item.status == ItemStatus.SHIPPED)
     if actor.role is UserRole.CUSTOMER:
         if actor.customer_id is None:
             counts = {}
+            active_shipments = 0
         else:
             counts = dict((await session.execute(query.where(
                 Item.customer_id == actor.customer_id))).all())
+            active_shipments = await session.scalar(active_shipments_query.where(
+                Item.customer_id == actor.customer_id
+            )) or 0
     else:
         counts = dict((await session.execute(query)).all())
+        active_shipments = await session.scalar(active_shipments_query) or 0
     return DashboardResponse(
         to_buy=counts.get(ItemStatus.TO_BUY, 0),
         on_the_way=counts.get(ItemStatus.ON_THE_WAY_TO_US, 0),
@@ -217,6 +225,7 @@ async def dashboard(actor: RequestActor = Depends(get_request_actor),
             ItemStatus.PURCHASED_OFFLINE, ItemStatus.RECEIVED, ItemStatus.ASSIGNED_TO_SHIPMENT
         )),
         shipped=counts.get(ItemStatus.SHIPPED, 0) + counts.get(ItemStatus.DELIVERED, 0),
+        active_shipments=active_shipments,
     )
 
 
