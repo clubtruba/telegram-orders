@@ -88,4 +88,11 @@ async def test_create_shipment_snapshots_address_and_reserves_item():
             assert shipment.tracking_number == "ES123456789"
             assert item.status is ItemStatus.SHIPPED
 
+            updated = await ShipmentService(session).save_tracking_for_shipped_item(
+                item.id, "DHL", "DHL987654321", user.id
+            )
+            assert updated.id == shipment.id
+            assert updated.carrier == "DHL"
+            assert updated.tracking_number == "DHL987654321"
+
             await session.rollback()

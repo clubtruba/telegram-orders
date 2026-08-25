@@ -28,6 +28,7 @@ from app.schemas.catalog import (
     CreateShipmentRequest,
     DashboardResponse,
     ItemResponse,
+    ItemTrackingRequest,
     ItemStatusCorrectionRequest,
     ItemStatusUpdateRequest,
     PaymentEvidenceResponse,
@@ -244,6 +245,29 @@ async def create_and_dispatch_shipment(
         ))
         await service.dispatch(
             shipment.id, command.carrier, command.tracking_number, actor.app_user_id
+        )
+        await session.commit()
+        return shipment
+    except ShipmentValidationError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.put(
+    "/admin/items/{item_id}/tracking",
+    response_model=ShipmentResponse,
+    tags=["admin"],
+)
+async def save_item_tracking(
+    item_id: UUID,
+    command: ItemTrackingRequest,
+    actor: RequestActor = Depends(get_request_actor),
+    session: AsyncSession = Depends(get_session),
+):
+    actor.require_admin()
+    try:
+        shipment = await ShipmentService(session).save_tracking_for_shipped_item(
+            item_id, command.carrier, command.tracking_number, actor.app_user_id
         )
         await session.commit()
         return shipment

@@ -67,6 +67,11 @@ class CreateShipmentRequest(BaseModel):
     tracking_number: str = Field(min_length=3, max_length=200)
 
 
+class ItemTrackingRequest(BaseModel):
+    carrier: str = Field(min_length=2, max_length=100)
+    tracking_number: str = Field(min_length=3, max_length=200)
+
+
 class ItemStatusUpdateRequest(BaseModel):
     status: ItemStatus
     reason: str | None = None

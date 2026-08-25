@@ -36,3 +36,8 @@
 .customer-address { margin-top: 9px; padding: 10px; border-radius: 11px; background: var(--tg-theme-bg-color, #f4f1e9); }
 .customer-address p { margin: 0 0 10px; white-space: pre-line; overflow-wrap: anywhere; }
 .customer-address .primary { width: 100%; min-height: 40px; }
+.tracking-panel { margin-top: 12px; }
+.tracking-panel summary { cursor: pointer; color: var(--tg-theme-link-color, #2678d9); font-size: 12px; font-weight: 750; }
+.tracking-panel form { display: grid; gap: 8px; margin-top: 9px; }
+.tracking-panel input { border: 1px solid #46504624; border-radius: 9px; padding: 9px; background: var(--tg-theme-bg-color, #f4f1e9); color: var(--tg-theme-text-color, #172019); font: inherit; }
+.tracking-panel .primary { min-height: 40px; }

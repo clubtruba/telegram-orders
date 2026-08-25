@@ -20,6 +20,7 @@ export const api = {
   warehouse:(data:string)=>request<Item[]>('/admin/warehouse',data),
   shipments:(data:string)=>request<Shipment[]>('/shipments',data),
   createShipment:(data:string,customerId:string,itemIds:string[],carrier:string,trackingNumber:string)=>request<Shipment>(`/admin/customers/${customerId}/shipments`,data,{method:'POST',body:JSON.stringify({item_ids:itemIds,carrier,tracking_number:trackingNumber})}),
+  saveItemTracking:(data:string,itemId:string,carrier:string,trackingNumber:string)=>request<Shipment>(`/admin/items/${itemId}/tracking`,data,{method:'PUT',body:JSON.stringify({carrier,tracking_number:trackingNumber})}),
   updateItemStatus:(data:string,id:string,status:ItemStatus)=>request<Item>(`/admin/items/${id}/status`,data,{method:'PATCH',body:JSON.stringify({status})}),
   correctItemStatus:(data:string,id:string,status:ItemStatus,reason:string)=>request<Item>(`/admin/items/${id}/status-correction`,data,{method:'PATCH',body:JSON.stringify({status,reason})}),
   profile:(data:string)=>request<CustomerProfile>('/profile',data),
