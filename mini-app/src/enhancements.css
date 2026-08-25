@@ -38,6 +38,7 @@
 .shipment-item span { display: grid; gap: 4px; min-width: 0; }
 .shipment-item small { overflow-wrap: anywhere; color: var(--tg-theme-hint-color, #657168); }
 .customer-details { margin-top: 12px; }
+.customer-summary { display: inline-block; margin: 4px 0 6px; padding: 7px 10px; border-radius: 10px; background: #e8f0e9; color: #365b43; font-size: 12px; font-weight: 750; }
 .customer-details summary { cursor: pointer; color: var(--tg-theme-link-color, #2678d9); font-size: 12px; font-weight: 750; }
 .customer-address { margin-top: 9px; padding: 10px; border-radius: 11px; background: var(--tg-theme-bg-color, #f4f1e9); }
 .customer-address p { margin: 0 0 10px; white-space: pre-line; overflow-wrap: anywhere; }
