@@ -54,14 +54,20 @@ async def test_create_shipment_snapshots_address_and_reserves_item():
                 quantity=1,
                 status=ItemStatus.RECEIVED,
             )
-            session.add_all([address, item])
+            offline_item = Item(
+                customer_id=customer.id,
+                product_url="https://example.com/offline-product",
+                quantity=1,
+                status=ItemStatus.PURCHASED_OFFLINE,
+            )
+            session.add_all([address, item, offline_item])
             await session.flush()
 
             shipment = await ShipmentService(session).create(
                 CreateShipmentCommand(
                     customer_id=customer.id,
                     address_id=address.id,
-                    item_ids=(item.id,),
+                    item_ids=(item.id, offline_item.id),
                     actor_user_id=user.id,
                 )
             )
@@ -70,6 +76,7 @@ async def test_create_shipment_snapshots_address_and_reserves_item():
 
             assert shipment.address_recipient_name == "Original Name"
             assert item.status is ItemStatus.ASSIGNED_TO_SHIPMENT
+            assert offline_item.status is ItemStatus.ASSIGNED_TO_SHIPMENT
             assert await session.scalar(
                 select(ShipmentItem).where(ShipmentItem.item_id == item.id)
             )
@@ -87,6 +94,7 @@ async def test_create_shipment_snapshots_address_and_reserves_item():
             assert shipment.carrier == "Correos"
             assert shipment.tracking_number == "ES123456789"
             assert item.status is ItemStatus.SHIPPED
+            assert offline_item.status is ItemStatus.SHIPPED
 
             updated = await ShipmentService(session).save_tracking_for_shipped_item(
                 item.id, "DHL", "DHL987654321", user.id

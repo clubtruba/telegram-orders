@@ -6,4 +6,4 @@ export interface Item { id:string; customer_id:string; product_url:string; size:
 export interface Customer { id:string; display_name:string; phone:string|null; collection_status:string; recipient_name:string|null; country_code:string|null; postal_code:string|null; region:string|null; city:string|null; address_line1:string|null; address_line2:string|null }
 export interface CustomerProfile { display_name:string; phone:string|null; country_code:string|null; postal_code:string|null; region:string|null; city:string|null; address_line1:string|null; address_line2:string|null; complete:boolean }
 export interface PaymentEvidence { id:string; item_id:string; note:string|null; original_filename:string|null; mime_type:string|null; has_image:boolean; created_at:string }
-export interface Shipment { id:string; customer_id:string; status:'PREPARING'|'SHIPPED'|'DELIVERED'|'CANCELLED'; carrier:string|null; tracking_number:string|null; created_at:string }
+export interface Shipment { id:string; customer_id:string; status:'PREPARING'|'SHIPPED'|'DELIVERED'|'CANCELLED'; carrier:string|null; tracking_number:string|null; created_at:string; item_ids:string[] }

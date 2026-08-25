@@ -17,6 +17,7 @@ from app.models import (
     Item,
     ItemStatus,
     PaymentEvidence,
+    ShipmentItem,
     UserRole,
 )
 from app.domain.item_workflow import InvalidItemTransition
@@ -64,6 +65,21 @@ def evidence_response(evidence: PaymentEvidence) -> PaymentEvidenceResponse:
         mime_type=evidence.mime_type,
         has_image=bool(evidence.stored_filename),
         created_at=evidence.created_at,
+    )
+
+
+async def shipment_response(session: AsyncSession, shipment: CustomerShipment) -> ShipmentResponse:
+    item_ids = list((await session.scalars(select(ShipmentItem.item_id).where(
+        ShipmentItem.shipment_id == shipment.id
+    ))).all())
+    return ShipmentResponse(
+        id=shipment.id,
+        customer_id=shipment.customer_id,
+        status=shipment.status,
+        carrier=shipment.carrier,
+        tracking_number=shipment.tracking_number,
+        created_at=shipment.created_at,
+        item_ids=item_ids,
     )
 
 
@@ -214,7 +230,8 @@ async def list_shipments(
         if actor.customer_id is None:
             return []
         query = query.where(CustomerShipment.customer_id == actor.customer_id)
-    return list((await session.scalars(query)).all())
+    shipments = list((await session.scalars(query)).all())
+    return [await shipment_response(session, shipment) for shipment in shipments]
 
 
 @router.post(
@@ -247,7 +264,7 @@ async def create_and_dispatch_shipment(
             shipment.id, command.carrier, command.tracking_number, actor.app_user_id
         )
         await session.commit()
-        return shipment
+        return await shipment_response(session, shipment)
     except ShipmentValidationError as exc:
         await session.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -270,7 +287,7 @@ async def save_item_tracking(
             item_id, command.carrier, command.tracking_number, actor.app_user_id
         )
         await session.commit()
-        return shipment
+        return await shipment_response(session, shipment)
     except ShipmentValidationError as exc:
         await session.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -296,6 +313,11 @@ async def update_item_status(
     session: AsyncSession = Depends(get_session),
 ):
     actor.require_admin()
+    if command.status in {ItemStatus.ASSIGNED_TO_SHIPMENT, ItemStatus.SHIPPED}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Create a customer shipment to assign or ship items",
+        )
     try:
         item = await ItemService(session).transition(
             item_id, command.status, actor.app_user_id, command.reason

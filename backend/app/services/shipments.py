@@ -67,8 +67,9 @@ class ShipmentService:
             raise ShipmentValidationError("one or more items do not exist")
         if any(item.customer_id != command.customer_id for item in items):
             raise ShipmentValidationError("all items must belong to the shipment customer")
-        if any(item.status is not ItemStatus.RECEIVED for item in items):
-            raise ShipmentValidationError("only RECEIVED items can be assigned")
+        eligible = {ItemStatus.PURCHASED_OFFLINE, ItemStatus.RECEIVED}
+        if any(item.status not in eligible for item in items):
+            raise ShipmentValidationError("only warehouse items can be assigned")
 
         shipment = CustomerShipment(
             customer_id=command.customer_id,
@@ -92,12 +93,13 @@ class ShipmentService:
         await self.session.flush()
 
         for item in items:
+            previous = item.status
             item.status = ItemStatus.ASSIGNED_TO_SHIPMENT
             self.session.add(ShipmentItem(shipment_id=shipment.id, item_id=item.id))
             self.session.add(
                 ItemStatusHistory(
                     item_id=item.id,
-                    from_status=ItemStatus.RECEIVED,
+                    from_status=previous,
                     to_status=ItemStatus.ASSIGNED_TO_SHIPMENT,
                     changed_by_user_id=command.actor_user_id,
                     reason=f"assigned to shipment {shipment.id}",

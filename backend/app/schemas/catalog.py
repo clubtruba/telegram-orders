@@ -59,6 +59,7 @@ class ShipmentResponse(BaseModel):
     carrier: str | None
     tracking_number: str | None
     created_at: datetime
+    item_ids: list[UUID] = Field(default_factory=list)
 
 
 class CreateShipmentRequest(BaseModel):
