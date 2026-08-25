@@ -30,6 +30,16 @@ class CustomerResponse(BaseModel):
     collection_status: CollectionStatus
 
 
+class AdminCustomerResponse(CustomerResponse):
+    recipient_name: str | None = None
+    country_code: str | None = None
+    postal_code: str | None = None
+    region: str | None = None
+    city: str | None = None
+    address_line1: str | None = None
+    address_line2: str | None = None
+
+
 class DashboardResponse(BaseModel):
     to_buy: int
     on_the_way: int

@@ -21,6 +21,7 @@ from app.models import (
 )
 from app.domain.item_workflow import InvalidItemTransition
 from app.schemas.catalog import (
+    AdminCustomerResponse,
     CustomerProfileResponse,
     CustomerProfileUpdateRequest,
     CustomerResponse,
@@ -148,11 +149,30 @@ async def update_profile(
     return profile_response(customer, address)
 
 
-@router.get("/admin/customers", response_model=list[CustomerResponse], tags=["admin"])
+@router.get("/admin/customers", response_model=list[AdminCustomerResponse], tags=["admin"])
 async def admin_customers(actor: RequestActor = Depends(get_request_actor),
                           session: AsyncSession = Depends(get_session)):
     actor.require_staff()
-    return list((await session.scalars(select(Customer).order_by(Customer.display_name))).all())
+    rows = (await session.execute(
+        select(Customer, CustomerAddress)
+        .outerjoin(CustomerAddress, (
+            (CustomerAddress.customer_id == Customer.id) & CustomerAddress.is_default.is_(True)
+        ))
+        .order_by(Customer.display_name)
+    )).all()
+    return [AdminCustomerResponse(
+        id=customer.id,
+        display_name=customer.display_name,
+        phone=customer.phone,
+        collection_status=customer.collection_status,
+        recipient_name=address.recipient_name if address else None,
+        country_code=address.country_code if address else None,
+        postal_code=address.postal_code if address else None,
+        region=address.region if address else None,
+        city=address.city if address else None,
+        address_line1=address.address_line1 if address else None,
+        address_line2=address.address_line2 if address else None,
+    ) for customer, address in rows]
 
 
 @router.get("/dashboard", response_model=DashboardResponse, tags=["dashboard"])
