@@ -5,7 +5,7 @@ from uuid import UUID
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums import ChatType
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -98,11 +98,39 @@ async def identity(event: Message | CallbackQuery):
 async def start(message: Message):
     if message.chat.type != ChatType.PRIVATE:
         return
-    await identity(message)
+    _, customer_id, role = await identity(message)
     webapp_url = get_settings().telegram_webapp_url
     await message.answer(
         "Добро пожаловать. Чтобы сделать заказ, отправьте мне ссылку на товар.",
         reply_markup=persistent_webapp_keyboard(webapp_url) if webapp_url else None,
+    )
+    if role.value == "CUSTOMER":
+        async with SessionFactory() as session:
+            profile_complete = await UserService(session).has_complete_delivery_profile(customer_id)
+        if not profile_complete and webapp_url:
+            await message.answer(
+                "Перед первым заказом заполните контактные данные и адрес. "
+                "Нажмите кнопку ниже. Если она не открывается, используйте кнопку "
+                "«Мои заказы» в меню бота — приложение само откроет раздел «Профиль».",
+                reply_markup=profile_keyboard(webapp_url),
+            )
+
+
+@router.message(Command("profile"))
+async def open_profile(message: Message):
+    if message.chat.type != ChatType.PRIVATE:
+        return
+    _, _, role = await identity(message)
+    if role.value != "CUSTOMER":
+        await message.answer("Для этого аккаунта включён режим просмотра.")
+        return
+    webapp_url = get_settings().telegram_webapp_url
+    if not webapp_url:
+        await message.answer("Анкета временно недоступна. Попробуйте позже.")
+        return
+    await message.answer(
+        "Откройте анкету и заполните контактные данные и адрес:",
+        reply_markup=profile_keyboard(webapp_url),
     )
 
 
